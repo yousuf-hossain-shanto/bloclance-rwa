@@ -78,7 +78,7 @@ If xrplcluster rate-limits, upgrade to paid XRPL RPC (QuickNode, Tatum) before s
 - Next.js 15 App Router + TypeScript strict.
 - Tailwind CSS v4 + shadcn/ui + Radix primitives.
 - TanStack Query for server state; Server Actions for mutations.
-- React Hook Form + Zod for forms.
+- **React Hook Form** + `@hookform/resolvers/zod` + **Zod** for forms (schemas imported from `packages/shared`).
 - TanStack Query `refetchInterval` on trading + portfolio screens (3s book/trades, 10s portfolio).
 - Lightweight Charts for trading view; Recharts for portfolio.
 - Framer Motion for modals + glassmorphism.
@@ -87,8 +87,9 @@ If xrplcluster rate-limits, upgrade to paid XRPL RPC (QuickNode, Tatum) before s
 
 - Route Handlers under `app/api/**/route.ts` for REST. Patterns and shapes per [api-surface.md](api-surface.md).
 - Server Actions in `app/(...)/actions.ts` for UI mutations.
-- Prisma over Neon for the data layer (in `packages/db`).
-- Zod schemas in `packages/shared` for FE/BE validation.
+- **Prisma** over Neon for the data layer (in `packages/db`). Migrations via `prisma migrate dev` locally + `prisma migrate deploy` in CI.
+- **Zod** schemas in `packages/shared` for end-to-end validation (forms, Route Handler inputs, Server Action args).
+- TypeScript strict mode everywhere; one `tsconfig.base.json` extended per package.
 - All QStash webhook endpoints verify `Upstash-Signature` before processing.
 
 ## Auth + Wallet (Privy)

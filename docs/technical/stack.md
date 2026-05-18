@@ -23,10 +23,12 @@ Client-MVP profile. Vercel-centric with Vercel marketplace integrations (Neon, U
 
 | Slot | Pick |
 |---|---|
-| Language | TypeScript (strict) |
+| Language | **TypeScript (strict)** |
+| ORM | **Prisma** (in `packages/db`) |
 | UI primitives | shadcn/ui + Radix |
 | Styling | Tailwind CSS v4 |
-| Forms | React Hook Form + Zod |
+| Forms | **React Hook Form** + **Zod** via `@hookform/resolvers/zod` |
+| Validation shared FE/BE | **Zod** schemas in `packages/shared` |
 | Server cache / data | TanStack Query (with `refetchInterval` for live screens) |
 | Charts (trading) | Lightweight Charts (TradingView) |
 | Charts (portfolio) | Recharts |
