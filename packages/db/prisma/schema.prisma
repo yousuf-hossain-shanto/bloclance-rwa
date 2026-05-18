@@ -67,18 +67,20 @@ enum WithdrawalStatus {
 // -----------------------------------------------------------------------------
 
 model User {
-  id              String    @id @default(uuid()) @db.Uuid
-  email           String    @unique
-  displayName     String?
-  avatarUrl       String?
-  kycStatus       KycStatus @default(NotVerified)
-  kycProviderRef  String?
-  xrpAddress      String    @unique
-  privyUserId     String?   @unique
-  autoReinvest    Boolean   @default(false)
-  lastLoginAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                 String    @id @default(uuid()) @db.Uuid
+  email              String    @unique
+  displayName        String?
+  avatarUrl          String?
+  kycStatus          KycStatus @default(NotVerified)
+  kycProviderRef     String?
+  sumsubApplicantId  String?   @unique
+  kycVerifiedAt      DateTime?
+  xrpAddress         String    @unique
+  privyUserId        String?   @unique
+  autoReinvest       Boolean   @default(false)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   holdings        Holding[]
   orders          Order[]

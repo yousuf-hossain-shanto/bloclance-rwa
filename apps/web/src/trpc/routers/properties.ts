@@ -1,3 +1,4 @@
+import { cached } from "@/lib/redis";
 import { prisma } from "@surgexrp/db";
 import type { Prisma } from "@surgexrp/db";
 import {
@@ -7,15 +8,25 @@ import {
 } from "@surgexrp/shared";
 import type { PropertyCard, TradeRow } from "@surgexrp/shared";
 import { mockCandles, mockOrderBook } from "@surgexrp/shared/mocks";
+import {
+  type CandleInterval,
+  aggregateCandles,
+  fetchAccountTx,
+  fetchBookOffers,
+  parseAccountTxToTrades,
+} from "@surgexrp/xrpl";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "../init";
 
 /**
- * tRPC router for property reads. Reads are backed by Prisma; order-book and
- * candles still return mock fixtures until the XRPL adapter ships in R2 (the
- * route signatures stay stable so the UI doesn't change).
+ * Property reads. Order-book and OHLCV now go through `@surgexrp/xrpl` when
+ * the property has on-ledger `tokenCode` + `tokenIssuerAddress` configured,
+ * with a 10s Redis read-through cache. Properties without on-ledger config
+ * fall back to the mock fixtures so the UI keeps rendering during seed/dev.
  */
+
+const RLUSD_ISSUER = process.env.RLUSD_ISSUER_TESTNET ?? "";
 
 function rowToCard(p: Prisma.PropertyGetPayload<Record<string, never>>): PropertyCard {
   return {
@@ -132,24 +143,58 @@ export const propertiesRouter = createTRPCRouter({
   }),
 
   book: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
-    // R2 swaps this for the XRPL adapter. We still validate the property
-    // exists so the UI doesn't render stale state for a missing id.
-    const exists = await prisma.property.findUnique({
+    const p = await prisma.property.findUnique({
       where: { id: input.id },
-      select: { id: true },
+      select: { id: true, tokenCode: true, tokenIssuerAddress: true },
     });
-    if (!exists) throw new TRPCError({ code: "NOT_FOUND", message: "Property not found" });
-    return mockOrderBook;
+    if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Property not found" });
+
+    // No on-ledger config (seed/dev) -> mock fixture so the UI keeps rendering.
+    if (!p.tokenCode || !p.tokenIssuerAddress || !RLUSD_ISSUER) {
+      return mockOrderBook;
+    }
+
+    return cached(`book:${p.id}`, 10, async () => {
+      try {
+        return await fetchBookOffers({
+          takerPays: { currency: p.tokenCode, issuer: p.tokenIssuerAddress, value: "0" },
+          takerGets: { currency: "RLUSD", issuer: RLUSD_ISSUER, value: "0" },
+          limit: 50,
+        });
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[properties.book] xrpl fetch failed:", (err as Error)?.message);
+        }
+        return mockOrderBook;
+      }
+    });
   }),
 
   candles: publicProcedure.input(PropertyCandlesInputSchema).query(async ({ input }) => {
-    const exists = await prisma.property.findUnique({
+    const p = await prisma.property.findUnique({
       where: { id: input.id },
-      select: { id: true },
+      select: { id: true, tokenCode: true, tokenIssuerAddress: true },
     });
-    if (!exists) throw new TRPCError({ code: "NOT_FOUND", message: "Property not found" });
-    // R2 derives OHLCV from Trade rows; we return the mock series for now.
-    return mockCandles;
+    if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "Property not found" });
+    if (!p.tokenCode || !p.tokenIssuerAddress) return mockCandles;
+
+    const interval: CandleInterval =
+      input.interval === "1m" || input.interval === "5m" || input.interval === "1h"
+        ? input.interval
+        : "1d";
+    return cached(`candles:${p.id}:${interval}:${input.range}`, 10, async () => {
+      try {
+        const resp = await fetchAccountTx({ account: p.tokenIssuerAddress, limit: 200 });
+        const trades = parseAccountTxToTrades(resp, p.tokenIssuerAddress, p.tokenCode);
+        const candles = aggregateCandles(trades, interval);
+        return candles.length > 0 ? candles : mockCandles;
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[properties.candles] xrpl fetch failed:", (err as Error)?.message);
+        }
+        return mockCandles;
+      }
+    });
   }),
 
   trades: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
@@ -158,10 +203,6 @@ export const propertiesRouter = createTRPCRouter({
       orderBy: { occurredAt: "desc" },
       take: 50,
     });
-    // Side semantics: "Buy" if the trade's buyer matches the viewer. Without
-    // a viewer in scope here (public procedure), we surface raw direction
-    // based on whether buyOrderId precedes sellOrderId lexicographically —
-    // this is just a display hint until R2 introduces a user-aware view.
     const out: TradeRow[] = rows.map((t) => ({
       id: t.id,
       units: t.units,

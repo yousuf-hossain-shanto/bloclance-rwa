@@ -1,28 +1,59 @@
 "use server";
 
+import { createApplicant, generateAccessToken, isSumsubConfigured } from "@/server/sumsub";
 import { prisma } from "@surgexrp/db";
-import { authActionClient } from "./safe-action";
+import { ActionError, authActionClient } from "./safe-action";
+
+const LEVEL_NAME = "basic-kyc-level";
 
 /**
- * Starts a Sumsub KYC session.
+ * Starts a Sumsub KYC session for the current user.
  *
- * R1 stub: flips the user's status to `Pending` and returns a mock access token.
- * R2 swaps the body for the real Sumsub server-SDK call.
+ *  1. Ensures a Sumsub applicant exists (creates one on demand, persists
+ *     `sumsubApplicantId` to `User`).
+ *  2. Flips `kycStatus` to `Pending` unless the user is already `Verified`.
+ *  3. Returns a short-lived WebSDK access token the client mounts into
+ *     `<KycSdkClient />`.
+ *
+ * The final `kycStatus = Verified` flip happens server-side from the Sumsub
+ * webhook (`/api/webhooks/sumsub`).
  */
 export const startKyc = authActionClient
   .metadata({ actionName: "startKyc" })
   .action(async ({ ctx }) => {
-    const user = await prisma.user.update({
-      where: { id: ctx.user.id },
-      data: {
-        kycStatus: ctx.user.kycStatus === "Verified" ? "Verified" : "Pending",
-      },
-      select: { id: true, kycStatus: true, kycProviderRef: true },
-    });
+    if (!isSumsubConfigured()) {
+      throw new ActionError("Sumsub not configured");
+    }
+
+    let applicantId = ctx.user.sumsubApplicantId;
+
+    if (!applicantId) {
+      const created = await createApplicant(ctx.user.id, LEVEL_NAME);
+      if (!created) {
+        throw new ActionError("Sumsub not configured");
+      }
+      applicantId = created.id;
+      await prisma.user.update({
+        where: { id: ctx.user.id },
+        data: { sumsubApplicantId: applicantId },
+      });
+    }
+
+    if (ctx.user.kycStatus !== "Verified") {
+      await prisma.user.update({
+        where: { id: ctx.user.id },
+        data: { kycStatus: "Pending" },
+      });
+    }
+
+    const token = await generateAccessToken(ctx.user.id, LEVEL_NAME);
+    if (!token) {
+      throw new ActionError("Sumsub not configured");
+    }
 
     return {
-      user,
-      accessToken: "STUB_FOR_R2_SUMSUB",
-      levelName: "basic-kyc-level",
+      accessToken: token.token,
+      levelName: LEVEL_NAME,
+      applicantId,
     };
   });

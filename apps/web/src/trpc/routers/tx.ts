@@ -1,17 +1,37 @@
 import { prisma } from "@surgexrp/db";
+import { getTxStatus } from "@surgexrp/xrpl";
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../init";
 
 /**
- * tx.status — resolves a single XRPL tx hash against any of the persisted
- * record tables (Order via `xrplTxHashes`, Trade, PrimaryPurchase,
- * Withdrawal, YieldPayout). Returns `Pending` if not found yet — the live
- * XRPL polling adapter in R2 fills the gap.
+ * tx.status — first consults XRPL directly (validated ledger or not yet seen),
+ * then falls back to our own tables so legacy mock hashes still resolve.
  */
 export const txRouter = createTRPCRouter({
   status: protectedProcedure
     .input(z.object({ hash: z.string().min(8) }))
     .query(async ({ ctx, input }) => {
+      // Real XRPL lookup. We swallow not-found and treat as "Pending"; any
+      // other error bubbles up as { status: 'Failed', error }.
+      try {
+        const live = await getTxStatus(input.hash);
+        if (live.validated) {
+          return {
+            hash: input.hash,
+            status: "Validated" as const,
+            ledgerIndex: live.ledgerIndex ?? 0,
+          };
+        }
+      } catch (err) {
+        return {
+          hash: input.hash,
+          status: "Failed" as const,
+          ledgerIndex: 0,
+          error: (err as Error)?.message ?? "XRPL request failed",
+        };
+      }
+
+      // Local fallback for mock hashes / queued submits.
       const [trade, purchase, withdrawal, payout, order] = await Promise.all([
         prisma.trade.findUnique({
           where: { xrplTxHash: input.hash },
@@ -36,28 +56,16 @@ export const txRouter = createTRPCRouter({
       ]);
 
       if (trade || payout) {
-        return { hash: input.hash, status: "Confirmed" as const, ledgerIndex: 0 };
+        return { hash: input.hash, status: "Validated" as const, ledgerIndex: 0 };
       }
-      if (purchase) {
-        return {
-          hash: input.hash,
-          status: purchase.status === "Confirmed" ? ("Confirmed" as const) : ("Pending" as const),
-          ledgerIndex: 0,
-        };
+      if (purchase?.status === "Confirmed") {
+        return { hash: input.hash, status: "Validated" as const, ledgerIndex: 0 };
       }
-      if (withdrawal) {
-        return {
-          hash: input.hash,
-          status: withdrawal.status === "Confirmed" ? ("Confirmed" as const) : ("Pending" as const),
-          ledgerIndex: 0,
-        };
+      if (withdrawal?.status === "Confirmed") {
+        return { hash: input.hash, status: "Validated" as const, ledgerIndex: 0 };
       }
-      if (order) {
-        return {
-          hash: input.hash,
-          status: order.status === "Filled" ? ("Confirmed" as const) : ("Pending" as const),
-          ledgerIndex: 0,
-        };
+      if (order?.status === "Filled") {
+        return { hash: input.hash, status: "Validated" as const, ledgerIndex: 0 };
       }
       return { hash: input.hash, status: "Pending" as const, ledgerIndex: 0 };
     }),

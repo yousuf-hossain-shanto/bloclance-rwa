@@ -1,6 +1,7 @@
 "use client";
 
-import { placeOrder } from "@/actions/orders";
+import { buildOfferCreateParams, placeOrder } from "@/actions/orders";
+import { useXrpl } from "@/hooks/use-xrpl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlaceOrderSchema } from "@surgexrp/shared";
 import type { Candle, OrderBookLevel, PropertyCard } from "@surgexrp/shared";
@@ -83,6 +84,7 @@ export function TradingClient({
 
   const values = watch();
 
+  const xrpl = useXrpl();
   const orderAction = useAction(placeOrder, {
     onSuccess: () => {
       setConfirmOpen(false);
@@ -124,7 +126,28 @@ export function TradingClient({
     setConfirmOpen(true);
   });
 
-  const onConfirm = (): void => {
+  const onConfirm = async (): Promise<void> => {
+    let signedTxBlob: string | undefined;
+    if (xrpl.available) {
+      try {
+        const params = await buildOfferCreateParams({
+          propertyId: values.propertyId,
+          side: values.side,
+          type: values.type,
+          units: values.units,
+          pricePerUnit: values.pricePerUnit,
+          asset: values.asset,
+          // Account is resolved server-side from session if needed; the hook
+          // signs against the embedded Privy wallet so we pass empty here.
+          account: "",
+        });
+        const signed = await xrpl.signOfferCreate(params);
+        if (signed) signedTxBlob = signed.tx_blob;
+      } catch (err) {
+        // Fall through — server will persist as Pending.
+        console.warn("[trading] xrpl sign failed:", (err as Error)?.message);
+      }
+    }
     orderAction.execute({
       propertyId: values.propertyId,
       side: values.side,
@@ -132,6 +155,7 @@ export function TradingClient({
       units: values.units,
       pricePerUnit: values.type === "Limit" ? values.pricePerUnit : undefined,
       asset: values.asset,
+      ...(signedTxBlob ? { signedTxBlob } : {}),
     });
   };
 
@@ -265,7 +289,9 @@ export function TradingClient({
         pricePerUnit={values.type === "Market" ? marketPriceUsd : (values.pricePerUnit ?? "0")}
         selectedAsset={values.asset}
         total={totalFormatted}
-        onConfirm={onConfirm}
+        onConfirm={() => {
+          void onConfirm();
+        }}
         loading={orderAction.status === "executing"}
       />
     </>

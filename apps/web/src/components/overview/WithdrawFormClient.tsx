@@ -1,6 +1,7 @@
 "use client";
 
-import { submitWithdrawal } from "@/actions/withdrawals";
+import { buildWithdrawalPaymentParams, submitWithdrawal } from "@/actions/withdrawals";
+import { useXrpl } from "@/hooks/use-xrpl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type SubmitWithdrawalInput, SubmitWithdrawalSchema } from "@surgexrp/shared";
 import { Button, WithdrawModal } from "@surgexrp/ui";
@@ -67,6 +68,7 @@ export function WithdrawFormClient({
     },
   });
 
+  const xrpl = useXrpl();
   const { execute, status } = useAction(submitWithdrawal, {
     onSuccess: () => {
       onClose();
@@ -135,7 +137,30 @@ export function WithdrawFormClient({
   }
 
   function handleSubmit(): void {
-    form.handleSubmit((values) => execute(values))();
+    form.handleSubmit(async (values) => {
+      let signedTxBlob: string | undefined;
+      if (xrpl.available) {
+        try {
+          const params = await buildWithdrawalPaymentParams({
+            account: "",
+            asset: values.asset,
+            amount: values.amount,
+            destinationAddress: values.destinationAddress,
+            destinationTag: values.destinationTag,
+          });
+          const signed = await xrpl.signPayment({
+            account: params.account,
+            destination: params.destination,
+            amount: params.amount,
+            destinationTag: params.destinationTag,
+          });
+          if (signed) signedTxBlob = signed.tx_blob;
+        } catch (err) {
+          console.warn("[withdraw] sign failed:", (err as Error)?.message);
+        }
+      }
+      execute({ ...values, ...(signedTxBlob ? { signedTxBlob } : {}) });
+    })();
   }
 
   function resetEmpty(): void {
