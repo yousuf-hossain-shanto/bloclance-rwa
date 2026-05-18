@@ -29,7 +29,9 @@ Client-MVP profile. Vercel-centric with Vercel marketplace integrations (Neon, U
 | Styling | Tailwind CSS v4 |
 | Forms | **React Hook Form** + **Zod** via `@hookform/resolvers/zod` |
 | Validation shared FE/BE | **Zod** schemas in `packages/shared` |
-| HTTP client (FE + BE) | **xior** (fetch-based, axios-like API). Shared instance in `packages/shared/http.ts` with interceptors for auth header, retry, error parsing. Used for: client → own Route Handlers; server → xrplcluster, Sumsub, Privy, Resend. |
+| **Type-safe RPC (queries + cancellable mutations)** | **tRPC** mounted at `/api/trpc/[trpc]` via single Route Handler; client via `@trpc/react-query` integrated with TanStack Query. |
+| **Type-safe Server Actions** | **next-safe-action** for form-driven mutations (purchase, place order, withdraw, profile). Same Zod schemas, built-in auth + KYC middleware. |
+| HTTP client (server → external) | **xior** (fetch-based, axios-like). Used server-side for xrplcluster, Sumsub REST endpoints, Resend, Privy server API, etc. Not used between client ↔ own backend (tRPC + Server Actions cover that). |
 | Server cache / data | TanStack Query (with `refetchInterval` for live screens) |
 | Charts (trading) | Lightweight Charts (TradingView) |
 | Charts (portfolio) | Recharts |

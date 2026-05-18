@@ -77,20 +77,20 @@ If xrplcluster rate-limits, upgrade to paid XRPL RPC (QuickNode, Tatum) before s
 
 - Next.js (latest, App Router) + TypeScript strict.
 - Tailwind CSS v4 + shadcn/ui + Radix primitives.
-- TanStack Query for server state; Server Actions for mutations.
-- **React Hook Form** + `@hookform/resolvers/zod` + **Zod** for forms (schemas imported from `packages/shared`).
-- **xior** as the fetcher behind TanStack Query (shared instance from `packages/shared/http.ts`).
+- **tRPC client** (`@trpc/react-query`) for all read queries + polling; integrates with TanStack Query so `refetchInterval` and cache invalidation work uniformly.
+- **next-safe-action** `useAction` hook for forms; pairs with React Hook Form + `@hookform/resolvers/zod` + Zod schemas from `packages/shared`.
 - TanStack Query `refetchInterval` on trading + portfolio screens (3s book/trades, 10s portfolio).
 - Lightweight Charts for trading view; Recharts for portfolio.
 - Framer Motion for modals + glassmorphism.
 
 ## Backend (== Next.js)
 
-- Route Handlers under `app/api/**/route.ts` for REST. Patterns and shapes per [api-surface.md](api-surface.md).
-- Server Actions in `app/(...)/actions.ts` for UI mutations.
+- **tRPC** as the query/RPC layer — single Route Handler at `/api/trpc/[trpc]` mounts `appRouter` from `apps/web/src/server/trpc/root.ts`. Client uses `@trpc/react-query` so calls integrate with TanStack Query (caching, `refetchInterval` for polling endpoints like book/market/tx-status).
+- **next-safe-action** for Server Actions invoked from forms (purchase, place order, withdraw, profile, KYC start). Composes `authActionClient` and `kycActionClient` middleware; Zod input schemas from `packages/shared`; typed `{ data | serverError | validationErrors }` envelope on the client via `useAction`.
+- **Route Handlers** retained only for inbound webhooks (Sumsub, Privy, QStash) — they need raw request + signature verification.
 - **Prisma** over Neon for the data layer (in `packages/db`). Migrations via `prisma migrate dev` locally + `prisma migrate deploy` in CI.
-- **Zod** schemas in `packages/shared` for end-to-end validation (forms, Route Handler inputs, Server Action args).
-- **xior** as the HTTP client on both FE + BE. One configured instance in `packages/shared/http.ts` with interceptors for auth header injection, retry-on-5xx, and consistent error envelope. Server-to-server calls (xrplcluster, Sumsub, Privy, Resend) reuse it; their official SDKs are used where available, xior elsewhere.
+- **Zod** schemas in `packages/shared` — single source for forms, tRPC inputs, Server Action inputs, webhook payloads.
+- **xior** on the server for outbound calls to external APIs (xrplcluster, Sumsub REST, Resend, Privy server) where no first-party SDK is preferred. Not used between client ↔ own backend (tRPC + Server Actions own that path).
 - TypeScript strict mode everywhere; one `tsconfig.base.json` extended per package.
 - All QStash webhook endpoints verify `Upstash-Signature` before processing.
 
