@@ -21,24 +21,17 @@ Centered modal on dark backdrop with blur. Glassmorphic panel.
 
 ### Behavior
 
-- Single email field — passwordless. **6-digit email OTP** (decided — see [open-questions.md](../open-questions.md#q4)).
-- "Continue" submits → server sends 6-digit code via Stytch → next screen is a code-input UI (to design — not in current Figma export).
-- Email validation: standard (regex client-side, server confirms).
-
-### Next screen to design (OTP input)
-
-- 6 numeric digits, auto-advance per digit, paste-detection (whole code paste fills all 6).
-- "Resend in 30s" button + "Use different email" link.
-- Error states: "Code expired (10 min TTL)", "Too many attempts — try again in 30 min".
-- On success: HTTP-only session cookie set → land in dashboard.
+- Single email field — passwordless. **6-digit email OTP via Privy** (decided — see [open-questions.md](../open-questions.md#q4)).
+- "Continue" hands the email to Privy's SDK → Privy sends OTP → user enters code in Privy's modal flow → Privy issues session JWT and provisions an XRPL embedded wallet in one step.
+- The Figma "Continue" submit + the next code-input screen are both rendered by **Privy's hosted UI components** (themed to match SurgeXRP colors via Privy's appearance config).
+- Email validation: handled by Privy.
 
 ### Wallet provisioning
 
-On first successful OTP verify, the backend triggers **Privy / Web3Auth** to create the user's embedded XRPL wallet (MPC keyshares; user/email-bound). The r-address is persisted to `users.xrp_address`. No additional screen needed — happens in background; first dashboard load shows the new Surge Wallet pill.
+Privy creates the user's XRPL embedded wallet on first successful OTP verify (MPC keyshares; user/email-bound). The r-address is returned to the app and persisted to `users.xrp_address` + `users.privy_user_id`. No additional screen — first dashboard load shows the new Surge Wallet pill.
 
-### Out of scope in designs (to add)
+### Out of scope in current Figma (handled by Privy / not needed)
 
-- OTP code-input screen.
-- Step-up auth (passkey or device biometric) screen — required before purchases >$10k and any withdrawal.
-- KYC modal launched at first Buy/Sell/Withdraw click — provider: Sumsub WebSDK.
-- Forgot/recovery flow — passwordless, but cover the "lost device + lost mailbox" edge via wallet recovery (Privy social + passkey).
+- OTP code-input screen → Privy renders it.
+- Forgot/recovery flow → Privy handles via social + passkey recovery.
+- KYC modal → triggered at first Buy/Sell/Withdraw click (Sumsub WebSDK), not at auth.
