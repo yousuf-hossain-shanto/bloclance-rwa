@@ -1,10 +1,12 @@
 # Open Questions
 
-Architectural questions left unresolved by Figma designs. Each has options, a suggested pick, and the reasoning. Living document — update as team discusses.
+Architectural questions left unresolved by Figma designs. Each has options, a suggested pick, and the reasoning.
+
+**Status**: all 5 decided 2026-05-18. See [Summary table](#summary-table) for picks.
 
 ---
 
-## Q1 — Order book: XRPL native DEX vs off-chain book
+## Q1 — Order book: XRPL native DEX vs off-chain book — ✅ DECIDED: Native XRPL DEX
 
 **Question**: Where does secondary-market matching happen? On XRPL itself, or in our backend?
 
@@ -37,7 +39,7 @@ Caveat: if MPT (XLS-33) isn't on mainnet by build start, fall back to **issued-c
 
 ---
 
-## Q2 — Wallet model: custodial vs non-custodial
+## Q2 — Wallet model: custodial vs non-custodial — ✅ DECIDED: Option C — Embedded non-custodial
 
 **Question**: Who holds the keys that sign XRPL transactions on behalf of users?
 
@@ -77,7 +79,7 @@ Fallback: if legal advises that even MPC embedded wallets count as custody in ou
 
 ---
 
-## Q3 — Yield distribution: auto-drip vs claimable
+## Q3 — Yield distribution: auto-drip vs claimable — ✅ DECIDED: Option A — Auto-drip
 
 **Question**: How does rental yield (the ROI shown per property) reach users?
 
@@ -110,7 +112,7 @@ Why:
 
 ---
 
-## Q4 — Auth: magic link vs email OTP
+## Q4 — Auth: magic link vs email OTP — ✅ DECIDED: Option B — 6-digit email OTP
 
 **Question**: After user submits email, how do they prove ownership?
 
@@ -141,7 +143,7 @@ Why:
 
 ---
 
-## Q5 — KYC: required upfront vs threshold-triggered
+## Q5 — KYC: required upfront vs threshold-triggered — ✅ DECIDED: Hybrid (gate at first transaction)
 
 **Question**: When does a user have to complete identity verification?
 
@@ -179,13 +181,13 @@ Why:
 
 ## Summary table
 
-| # | Question | Suggested pick | One-line reason |
+| # | Question | Decision (2026-05-18) | One-line reason |
 |---|---|---|---|
-| Q1 | Order book | Native XRPL DEX | Compliance via MPT RequireAuth; 3–4s finality matches mocks; skips ATS license; ~$0 infra. |
-| Q2 | Wallet | Embedded non-custodial (Privy / Web3Auth) | Custodial UX, non-custodial classification; saves $2–5M licensing; Figma fits unchanged. |
-| Q3 | Yield | Auto-drip + Auto-Reinvest toggle | No new screen needed; XRPL fees are nothing; clean 1099-DIV per period. |
-| Q4 | Auth | 6-digit email OTP (Stytch) | Magic link silently fails in mobile in-app browsers; OTP is cross-device by default. |
-| Q5 | KYC | Gate at first transaction | Open browse + sanctions screen at signup; full KYC on first Buy/Sell/Withdraw. |
+| Q1 | Order book | ✅ **Native XRPL DEX** | Compliance via MPT RequireAuth; 3–4s finality matches mocks; skips ATS license; ~$0 infra. |
+| Q2 | Wallet | ✅ **Embedded non-custodial** (Privy / Web3Auth) | Custodial UX, non-custodial classification; saves $2–5M licensing; Figma fits unchanged. |
+| Q3 | Yield | ✅ **Auto-drip** + Auto-Reinvest toggle | No new screen needed; XRPL fees are nothing; clean 1099-DIV per period. |
+| Q4 | Auth | ✅ **6-digit email OTP** (Stytch) | Magic link silently fails in mobile in-app browsers; OTP is cross-device by default. |
+| Q5 | KYC | ✅ **Gate at first transaction** | Open browse + sanctions screen at signup; full KYC on first Buy/Sell/Withdraw. |
 
 ## Notable side-effects to flag
 
