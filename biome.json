@@ -43,6 +43,9 @@
       "correctness": {
         "noUnusedVariables": "warn",
         "useExhaustiveDependencies": "warn"
+      },
+      "a11y": {
+        "useSemanticElements": "off"
       }
     }
   },

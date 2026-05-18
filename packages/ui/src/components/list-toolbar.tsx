@@ -12,9 +12,13 @@ export interface ToolbarOption<T extends string> {
 export interface ListToolbarProps<T extends string> {
   /** Label shown before the toggle group. */
   sortLabel?: string;
-  options: ToolbarOption<T>[];
-  value: T;
-  onChange: (value: T) => void;
+  options?: ToolbarOption<T>[];
+  value?: T;
+  onChange?: (value: T) => void;
+  /** Suppress sort tabs entirely (Marketplace shows counter + filter only). */
+  hideSort?: boolean;
+  /** Left-side counter text, e.g. `35 Properties Available`. */
+  counterText?: string;
   showFilter?: boolean;
   onFilterClick?: () => void;
   className?: string;
@@ -25,6 +29,8 @@ export function ListToolbar<T extends string>({
   options,
   value,
   onChange,
+  hideSort = false,
+  counterText,
   showFilter,
   onFilterClick,
   className,
@@ -37,24 +43,29 @@ export function ListToolbar<T extends string>({
       )}
     >
       <div className="flex items-center gap-3">
-        <span className="text-xs uppercase tracking-wider text-text-subtle">{sortLabel}</span>
-        <div className="flex gap-1 rounded-full bg-white/5 p-1">
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onChange(opt.value)}
-              className={cn(
-                "rounded-full px-4 py-1.5 text-sm font-medium transition",
-                value === opt.value
-                  ? "bg-gold text-bg-primary"
-                  : "text-text-muted hover:text-white",
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        {counterText && <span className="text-sm font-medium text-white">{counterText}</span>}
+        {!hideSort && options && value !== undefined && onChange && (
+          <>
+            <span className="text-xs uppercase tracking-wider text-text-subtle">{sortLabel}</span>
+            <div className="flex gap-1 rounded-full bg-white/5 p-1">
+              {options.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onChange(opt.value)}
+                  className={cn(
+                    "rounded-full px-4 py-1.5 text-sm font-medium transition",
+                    value === opt.value
+                      ? "bg-gold text-bg-primary"
+                      : "text-text-muted hover:text-white",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
       {showFilter && (
         <button
