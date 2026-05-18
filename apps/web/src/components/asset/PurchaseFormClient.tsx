@@ -1,6 +1,7 @@
 "use client";
 
 import { submitPurchase } from "@/actions/purchases";
+import { useActionToast } from "@/hooks/use-action-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type SubmitPurchaseInput, SubmitPurchaseSchema } from "@surgexrp/shared";
 import { Button, PurchaseModal } from "@surgexrp/ui";
@@ -65,9 +66,18 @@ export function PurchaseFormClient({
   const units = form.watch("units");
   const asset = form.watch("asset");
 
+  const { showError, showSuccess } = useActionToast();
+
   const { execute, status } = useAction(submitPurchase, {
     onSuccess: () => {
+      // Optimistic close + confirmation toast — keeps the UI snappy while
+      // the XRPL job picks up the queued purchase.
       onClose();
+      showSuccess("Purchase confirmed");
+    },
+    onError: ({ error }) => {
+      const message = error.serverError ?? "Couldn't submit your purchase. Please try again.";
+      showError(message);
     },
   });
 

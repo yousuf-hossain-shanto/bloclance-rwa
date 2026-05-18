@@ -1,6 +1,7 @@
 "use client";
 
 import { buildWithdrawalPaymentParams, submitWithdrawal } from "@/actions/withdrawals";
+import { useActionToast } from "@/hooks/use-action-toast";
 import { useXrpl } from "@/hooks/use-xrpl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type SubmitWithdrawalInput, SubmitWithdrawalSchema } from "@surgexrp/shared";
@@ -69,9 +70,16 @@ export function WithdrawFormClient({
   });
 
   const xrpl = useXrpl();
+  const { showError, showSuccess } = useActionToast();
   const { execute, status } = useAction(submitWithdrawal, {
     onSuccess: () => {
+      // Optimistic close + confirmation toast.
       onClose();
+      showSuccess("Withdrawal submitted");
+    },
+    onError: ({ error }) => {
+      const message = error.serverError ?? "Couldn't submit your withdrawal. Please try again.";
+      showError(message);
     },
   });
 

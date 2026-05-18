@@ -11,6 +11,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:e2e": "pnpm --filter web exec playwright test",
+    "test:e2e:install": "pnpm --filter web exec playwright install chromium",
     "type-check": "turbo run type-check",
     "format": "biome format --write .",
     "check": "biome check .",

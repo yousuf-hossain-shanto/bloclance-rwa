@@ -1,6 +1,7 @@
 "use client";
 
 import { buildOfferCreateParams, placeOrder } from "@/actions/orders";
+import { useActionToast } from "@/hooks/use-action-toast";
 import { useXrpl } from "@/hooks/use-xrpl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlaceOrderSchema } from "@surgexrp/shared";
@@ -85,6 +86,7 @@ export function TradingClient({
   const values = watch();
 
   const xrpl = useXrpl();
+  const { showError, showSuccess } = useActionToast();
   const orderAction = useAction(placeOrder, {
     onSuccess: () => {
       setConfirmOpen(false);
@@ -96,6 +98,11 @@ export function TradingClient({
         pricePerUnit: marketPriceUsd,
         asset: "RLUSD",
       });
+      showSuccess("Order placed");
+    },
+    onError: ({ error }) => {
+      const message = error.serverError ?? "Couldn't place your order. Please try again.";
+      showError(message);
     },
   });
 

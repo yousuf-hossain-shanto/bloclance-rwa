@@ -38,7 +38,8 @@
         "useNodejsImportProtocol": "warn"
       },
       "suspicious": {
-        "noExplicitAny": "warn"
+        "noExplicitAny": "warn",
+        "noArrayIndexKey": "off"
       },
       "correctness": {
         "noUnusedVariables": "warn",
