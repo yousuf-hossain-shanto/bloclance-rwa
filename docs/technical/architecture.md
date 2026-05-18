@@ -79,6 +79,7 @@ If xrplcluster rate-limits, upgrade to paid XRPL RPC (QuickNode, Tatum) before s
 - Tailwind CSS v4 + shadcn/ui + Radix primitives.
 - TanStack Query for server state; Server Actions for mutations.
 - **React Hook Form** + `@hookform/resolvers/zod` + **Zod** for forms (schemas imported from `packages/shared`).
+- **xior** as the fetcher behind TanStack Query (shared instance from `packages/shared/http.ts`).
 - TanStack Query `refetchInterval` on trading + portfolio screens (3s book/trades, 10s portfolio).
 - Lightweight Charts for trading view; Recharts for portfolio.
 - Framer Motion for modals + glassmorphism.
@@ -89,6 +90,7 @@ If xrplcluster rate-limits, upgrade to paid XRPL RPC (QuickNode, Tatum) before s
 - Server Actions in `app/(...)/actions.ts` for UI mutations.
 - **Prisma** over Neon for the data layer (in `packages/db`). Migrations via `prisma migrate dev` locally + `prisma migrate deploy` in CI.
 - **Zod** schemas in `packages/shared` for end-to-end validation (forms, Route Handler inputs, Server Action args).
+- **xior** as the HTTP client on both FE + BE. One configured instance in `packages/shared/http.ts` with interceptors for auth header injection, retry-on-5xx, and consistent error envelope. Server-to-server calls (xrplcluster, Sumsub, Privy, Resend) reuse it; their official SDKs are used where available, xior elsewhere.
 - TypeScript strict mode everywhere; one `tsconfig.base.json` extended per package.
 - All QStash webhook endpoints verify `Upstash-Signature` before processing.
 
