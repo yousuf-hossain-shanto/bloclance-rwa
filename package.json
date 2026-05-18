@@ -13,7 +13,10 @@
     "test": "turbo run test",
     "type-check": "turbo run type-check",
     "format": "biome format --write .",
-    "check": "biome check ."
+    "check": "biome check .",
+    "db:push": "pnpm --filter @surgexrp/db db:push",
+    "db:seed": "pnpm --filter @surgexrp/db db:seed",
+    "db:generate": "pnpm --filter @surgexrp/db generate"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

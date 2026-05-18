@@ -1,7 +1,7 @@
 import { AssetDetailSidebar } from "@/components/asset/AssetDetailSidebar";
 import { AssetDetailTabs } from "@/components/asset/AssetDetailTabs";
 import { AuthButtons, AuthGateProvider } from "@/components/auth/AuthGateClient";
-import { mockProperties } from "@surgexrp/shared/mocks";
+import { getServerCaller } from "@/trpc/server";
 import { AppShell, AssetHeader, Button, DetailWithSidebarLayout } from "@surgexrp/ui";
 import { notFound } from "next/navigation";
 import type { ReactElement } from "react";
@@ -12,30 +12,19 @@ const NAV_LINKS = [
   { href: "/marketplace", label: "Marketplace" },
 ];
 
-/**
- * Verbatim About-tab data for The Azure Penthouse (docs/screens/explore.md).
- * Other mock properties reuse this copy in the M0 prototype — wired to real
- * data in M1.
- */
-const AZURE_ABOUT = {
-  bedroomCount: 4,
-  areaSqm: 727,
-  description:
-    "Perched atop the city's skyline, The Azure Penthouse is a masterclass in coastal modernism and elevated living. Designed for those who demand both high-octane energy and serene privacy, this residence offers an unparalleled vantage point over the shimmering Biscayne Bay and the Atlantic horizon.",
-  developer: "The Azure Homes and Suites",
-} as const;
+export const dynamic = "force-dynamic";
 
 export default async function AssetDetailPage({
   params,
 }: { params: Promise<{ id: string }> }): Promise<ReactElement> {
   const { id } = await params;
-  const property = mockProperties.find((p) => p.id === id);
+  const trpc = await getServerCaller();
+  const property = await trpc.properties.byId({ id }).catch(() => null);
   if (!property) notFound();
 
-  // Spec values for Azure Penthouse: property value $2,581,023 / 3-5 Years /
-  // 11.2% ROI / $430 per unit / 400 of 1,200 available.
-  const propertyValueUsd = "2,581,023";
-  const holdPeriod = "3-5 Years";
+  const propertyValueUsd = Number(property.propertyValue).toLocaleString(undefined, {
+    maximumFractionDigits: 0,
+  });
 
   return (
     <AuthGateProvider>
@@ -62,7 +51,7 @@ export default async function AssetDetailPage({
               roiAnnualPct={property.roiAnnualPct}
               kpis={[
                 { label: "Property Value", value: `$${propertyValueUsd}` },
-                { label: "Hold period", value: holdPeriod },
+                { label: "Hold period", value: property.holdPeriod },
                 { label: "Price per unit", value: `$${property.pricePerUnit}` },
                 {
                   label: "Units available",
@@ -80,10 +69,19 @@ export default async function AssetDetailPage({
               roiAnnualPct={property.roiAnnualPct}
               pricePerUnit={property.pricePerUnit}
               unitsAvailable={property.unitsAvailable}
-              minUnits={5}
+              minUnits={property.minInvestmentUnits}
             />
           }
-          body={<AssetDetailTabs about={AZURE_ABOUT} />}
+          body={
+            <AssetDetailTabs
+              about={{
+                bedroomCount: property.bedroomCount ?? 0,
+                areaSqm: property.areaSqm ?? 0,
+                description: property.description,
+                developer: property.developer,
+              }}
+            />
+          }
         />
       </AppShell>
     </AuthGateProvider>

@@ -1,6 +1,6 @@
 import { MarketplaceAuthSlot } from "@/components/marketplace/MarketplaceAuthSlot";
 import { MarketplaceListClient } from "@/components/marketplace/MarketplaceListClient";
-import { mockProperties } from "@surgexrp/shared/mocks";
+import { getServerCaller } from "@/trpc/server";
 import { AppShell } from "@surgexrp/ui";
 
 const NAV_LINKS = [
@@ -9,14 +9,18 @@ const NAV_LINKS = [
   { href: "/marketplace", label: "Marketplace", active: true },
 ];
 
-export default function MarketplacePage() {
-  // 35 Properties Available — verbatim per docs/screens/marketplace.md.
+export const dynamic = "force-dynamic";
+
+export default async function MarketplacePage() {
+  const trpc = await getServerCaller();
+  const { items, total } = await trpc.properties.list({ page: 1, pageSize: 24 });
+
   return (
     <AppShell navLinks={NAV_LINKS} authSlot={<MarketplaceAuthSlot />}>
       <MarketplaceListClient
-        properties={mockProperties}
-        counterText="35 Properties Available"
-        totalResults={24}
+        properties={items}
+        counterText={`${total} Properties Available`}
+        totalResults={total}
       />
     </AppShell>
   );

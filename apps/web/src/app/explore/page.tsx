@@ -1,6 +1,6 @@
 import { AuthButtons, AuthGateProvider } from "@/components/auth/AuthGateClient";
 import { ExploreListing } from "@/components/explore/ExplorePageClient";
-import { mockProperties } from "@surgexrp/shared/mocks";
+import { getServerCaller } from "@/trpc/server";
 import { AppShell, CenteredListPage, SectionHeader } from "@surgexrp/ui";
 import type { ReactElement } from "react";
 
@@ -10,7 +10,12 @@ const NAV_LINKS = [
   { href: "/marketplace", label: "Marketplace" },
 ];
 
-export default function ExplorePage(): ReactElement {
+export const dynamic = "force-dynamic";
+
+export default async function ExplorePage(): Promise<ReactElement> {
+  const trpc = await getServerCaller();
+  const { items, total } = await trpc.properties.list({ page: 1, pageSize: 8 });
+
   return (
     <AuthGateProvider>
       <AppShell navLinks={NAV_LINKS} authSlot={<AuthButtons />}>
@@ -26,7 +31,7 @@ export default function ExplorePage(): ReactElement {
           // through `children`.
           gridClassName="contents"
         >
-          <ExploreListing properties={mockProperties} totalResults={24} pageSize={8} />
+          <ExploreListing properties={items} totalResults={total} pageSize={8} />
         </CenteredListPage>
       </AppShell>
     </AuthGateProvider>

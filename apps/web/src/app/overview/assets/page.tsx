@@ -1,6 +1,7 @@
 import { AuthGateProvider } from "@/components/auth/AuthGateClient";
 import { HoldingsGridClient } from "@/components/overview/HoldingsGridClient";
-import { mockProperties } from "@surgexrp/shared/mocks";
+import { getServerCaller } from "@/trpc/server";
+import type { PropertyCard } from "@surgexrp/shared";
 import {
   AppShell,
   Button,
@@ -19,24 +20,26 @@ const NAV_LINKS = [
 
 const MOCK_WALLET = "r62UiV223536746446892HfFA";
 
+export const dynamic = "force-dynamic";
+
 /**
- * Overview → View All. Full grid of `<PropertyCard variant="holding">`.
- * Eight cards visible: Azure, Vela, Coastal, Metropolitan, Shanti Palazo,
- * Condo Al Cartie + two repeats so the 4×2 grid is full.
+ * Overview → View All. Full grid of `<PropertyCard variant="holding">` driven
+ * by the user's seeded holdings. Falls back to the public property catalogue
+ * if the viewer is unauthenticated (so the demo deep-link still shows shapes).
  */
-export default function OverviewAssetsPage(): ReactElement {
-  const ordered = [
-    mockProperties[0], // Azure Penthouse
-    mockProperties[1], // Vela Commercial Tower
-    mockProperties[2], // Coastal Retreat Villa
-    mockProperties[3], // Metropolitan Lofts
-    mockProperties[8], // Shanti Palazo
-    mockProperties[9], // Condo Al Cartie
-    mockProperties[0], // repeat to fill row
-    mockProperties[2], // repeat to fill row
-  ].filter((p): p is NonNullable<typeof p> => Boolean(p));
-  // Stable React keys when the same id repeats:
-  const properties = ordered.map((p, i) => ({ ...p, id: `${p.id}-${i}` }));
+export default async function OverviewAssetsPage(): Promise<ReactElement> {
+  const trpc = await getServerCaller();
+  let properties: PropertyCard[] = [];
+  try {
+    const holdings = await trpc.portfolio.holdings({ page: 1, pageSize: 24 });
+    const fetched = await Promise.all(
+      holdings.items.map((h) => trpc.properties.byId({ id: h.propertyId }).catch(() => null)),
+    );
+    properties = fetched.filter((p): p is NonNullable<typeof p> => Boolean(p));
+  } catch {
+    const fallback = await trpc.properties.list({ page: 1, pageSize: 8 });
+    properties = fallback.items;
+  }
 
   return (
     <AuthGateProvider initialAuthenticated>

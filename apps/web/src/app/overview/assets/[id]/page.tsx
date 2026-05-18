@@ -1,5 +1,5 @@
 import { AuthGateProvider } from "@/components/auth/AuthGateClient";
-import { mockProperties } from "@surgexrp/shared/mocks";
+import { getServerCaller } from "@/trpc/server";
 import {
   AppShell,
   AssetHeader,
@@ -23,27 +23,36 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+export const dynamic = "force-dynamic";
+
 /**
- * `/overview/assets/[id]` — minimal holding-detail page. The Overview View
- * Asset path in `docs/screens/portfolio.md` notes "click card → Trading view
- * (faster path to sell)"; this stub provides the headline + sidebar CTA that
- * routes to `/marketplace/[id]` (Agent B owns the marketplace detail).
+ * `/overview/assets/[id]` — holding-detail page. Reads the property record
+ * via tRPC and looks up the viewer's holding for live ownership stats.
  */
 export default async function OverviewAssetDetailPage({
   params,
 }: PageProps): Promise<ReactElement> {
   const { id } = await params;
-  // Strip trailing index suffixes used to dedupe repeated cards on the
-  // listing page (`<uuid>-3`).
+  // Strip the per-card suffix the listing emits to dedupe React keys.
   const realId = id.replace(/-\d+$/, "");
-  const property = mockProperties.find((p) => p.id === realId);
+  const trpc = await getServerCaller();
+  const property = await trpc.properties.byId({ id: realId }).catch(() => null);
   if (!property) notFound();
 
+  // Look up the viewer's holding, if any.
+  let unitsOwned = 0;
+  try {
+    const { items } = await trpc.portfolio.holdings({ page: 1, pageSize: 100 });
+    const h = items.find((row) => row.propertyId === realId);
+    if (h) unitsOwned = h.unitsOwned;
+  } catch {
+    // Unauthenticated — surface a derived placeholder so the demo still
+    // renders a populated sidebar.
+    unitsOwned = Math.max(1, Math.floor((property.totalUnits - property.unitsAvailable) / 2));
+  }
+
   const pricePerUnitNum = Number(property.pricePerUnit);
-  const unitsOwned = Math.max(1, Math.floor((property.totalUnits - property.unitsAvailable) / 2));
-  const currentValueUsd = Number.isFinite(pricePerUnitNum)
-    ? pricePerUnitNum * unitsOwned
-    : Number(property.tradeVolumeUsd ?? 0);
+  const currentValueUsd = Number.isFinite(pricePerUnitNum) ? pricePerUnitNum * unitsOwned : 0;
 
   return (
     <AuthGateProvider initialAuthenticated>

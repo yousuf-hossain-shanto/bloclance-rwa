@@ -1,23 +1,61 @@
+import { prisma } from "@surgexrp/db";
+import type { Prisma } from "@surgexrp/db";
 import { CancelOrderSchema, ListOrdersSchema, OrderPreviewSchema } from "@surgexrp/shared";
-import { mockOrders } from "@surgexrp/shared/mocks";
 import { z } from "zod";
 import { createTRPCRouter, kycProcedure, protectedProcedure } from "../init";
 
+function serializeOrder(o: Prisma.OrderGetPayload<Record<string, never>>) {
+  return {
+    id: o.id,
+    propertyId: o.propertyId,
+    side: o.side,
+    type: o.type,
+    units: o.units,
+    pricePerUnit: o.pricePerUnit ? o.pricePerUnit.toString() : null,
+    settlementAsset: o.settlementAsset,
+    totalAmount: o.totalAmount.toString(),
+    status: o.status,
+    filledUnits: o.filledUnits,
+    averageFillPrice: o.averageFillPrice ? o.averageFillPrice.toString() : null,
+    xrplTxHashes: o.xrplTxHashes,
+    createdAt: o.createdAt.toISOString(),
+    filledAt: o.filledAt ? o.filledAt.toISOString() : null,
+  };
+}
+
 export const ordersRouter = createTRPCRouter({
-  list: protectedProcedure.input(ListOrdersSchema).query(({ input }) => {
-    return mockOrders.filter(
-      (o) =>
-        (!input.status || o.status === input.status) &&
-        (!input.propertyId || o.propertyId === input.propertyId),
-    );
+  list: protectedProcedure.input(ListOrdersSchema).query(async ({ ctx, input }) => {
+    const where: Prisma.OrderWhereInput = { userId: ctx.user.id };
+    if (input.status) where.status = input.status;
+    if (input.propertyId) where.propertyId = input.propertyId;
+    const rows = await prisma.order.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+    return rows.map(serializeOrder);
   }),
 
   byId: protectedProcedure
     .input(z.object({ orderId: z.string().uuid() }))
-    .query(({ input }) => mockOrders.find((o) => o.id === input.orderId) ?? null),
+    .query(async ({ ctx, input }) => {
+      const o = await prisma.order.findFirst({
+        where: { id: input.orderId, userId: ctx.user.id },
+      });
+      return o ? serializeOrder(o) : null;
+    }),
 
-  preview: kycProcedure.input(OrderPreviewSchema).query(({ input }) => {
-    const unitPrice = Number(input.pricePerUnit ?? "430");
+  preview: kycProcedure.input(OrderPreviewSchema).query(async ({ input }) => {
+    // Pricing source: explicit limit price if provided, otherwise the current
+    // property's `pricePerUnit`. Fees and slippage remain heuristic until R2.
+    let unitPrice = Number(input.pricePerUnit ?? "0");
+    if (input.type === "Market" || !input.pricePerUnit) {
+      const p = await prisma.property.findUnique({
+        where: { id: input.propertyId },
+        select: { pricePerUnit: true },
+      });
+      if (p) unitPrice = Number(p.pricePerUnit);
+    }
     const total = unitPrice * input.units;
     const fee = total * 0.005;
     return {
@@ -30,7 +68,11 @@ export const ordersRouter = createTRPCRouter({
     };
   }),
 
-  cancel: kycProcedure
-    .input(CancelOrderSchema)
-    .mutation(({ input }) => ({ ok: true, orderId: input.orderId })),
+  cancel: kycProcedure.input(CancelOrderSchema).mutation(async ({ ctx, input }) => {
+    // Verify ownership; R1-B's `cancelOrder` server action does the write.
+    const o = await prisma.order.findFirst({
+      where: { id: input.orderId, userId: ctx.user.id },
+    });
+    return { ok: !!o, orderId: input.orderId };
+  }),
 });

@@ -1,15 +1,14 @@
+import { getSessionUser } from "@/server/auth";
+import { prisma } from "@surgexrp/db";
+import type { PrismaClient, User as PrismaUser } from "@surgexrp/db";
 import { TRPCError, initTRPC } from "@trpc/server";
 import { cache } from "react";
 import superjson from "superjson";
 
-export interface SessionUser {
-  id: string;
-  email: string;
-  xrpAddress: string;
-  kycStatus: "NotVerified" | "Pending" | "Verified";
-}
+export type SessionUser = PrismaUser;
 
 export interface TrpcContext {
+  db: PrismaClient;
   user: SessionUser | null;
   /** Browser request headers, used to bridge session cookies. */
   reqHeaders: Headers;
@@ -17,11 +16,14 @@ export interface TrpcContext {
 
 /**
  * Wrapped in React `cache` so a single context is reused across the prefetch
- * tree on the server. Wire to Privy session here in M1.
+ * tree on the server. Reads the Privy session from the request and upserts the
+ * Prisma `User` row on first sign-in (see `@/server/auth`).
  */
 export const createTRPCContext = cache(async (opts: { req: Request }): Promise<TrpcContext> => {
+  const user = await getSessionUser(opts.req);
   return {
-    user: null,
+    db: prisma,
+    user,
     reqHeaders: opts.req.headers,
   };
 });
@@ -47,7 +49,7 @@ export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
 
 export const kycProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   if (ctx.user.kycStatus !== "Verified") {
-    throw new TRPCError({ code: "FORBIDDEN", message: "KYC verification required" });
+    throw new TRPCError({ code: "FORBIDDEN", message: "KYC_REQUIRED" });
   }
   return next({ ctx });
 });

@@ -76,6 +76,7 @@ model User {
   xrpAddress      String    @unique
   privyUserId     String?   @unique
   autoReinvest    Boolean   @default(false)
+  lastLoginAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -113,6 +114,8 @@ model Property {
   roiAnnualPct          Decimal        @db.Decimal(6, 2)
   minInvestmentUsd      Decimal        @db.Decimal(20, 2)
   minInvestmentUnits    Int
+  /** 24h trade volume in USD (Marketplace listing only). */
+  tradeVolumeUsd        Decimal?       @db.Decimal(20, 2)
   status                PropertyStatus @default(Active)
   documentsUrls         String[]
   financials            Json?
