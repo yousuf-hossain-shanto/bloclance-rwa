@@ -1,0 +1,26 @@
+{
+  "name": "@surgexrp/xrpl",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "biome check src",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "xrpl": "^4.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,292 @@
+// Prisma schema for SurgeXRP — see docs/technical/data-model.md
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum KycStatus {
+  NotVerified
+  Pending
+  Verified
+}
+
+enum Asset {
+  XRP
+  RLUSD
+}
+
+enum PropertyStatus {
+  Active
+  SoldOut
+  Closed
+}
+
+enum OrderSide {
+  Buy
+  Sell
+}
+
+enum OrderType {
+  Market
+  Limit
+}
+
+enum OrderStatus {
+  Open
+  PartiallyFilled
+  Filled
+  Cancelled
+  Expired
+  Failed
+}
+
+enum PurchaseStatus {
+  Pending
+  Confirmed
+  Failed
+}
+
+enum WithdrawalStatus {
+  Pending
+  Submitted
+  Confirmed
+  Failed
+}
+
+// -----------------------------------------------------------------------------
+// Users
+// -----------------------------------------------------------------------------
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  displayName     String?
+  avatarUrl       String?
+  kycStatus       KycStatus @default(NotVerified)
+  kycProviderRef  String?
+  xrpAddress      String    @unique
+  privyUserId     String?   @unique
+  autoReinvest    Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  holdings        Holding[]
+  orders          Order[]
+  purchases       PrimaryPurchase[]
+  withdrawals     Withdrawal[]
+  buyTrades       Trade[]   @relation("BuyerTrades")
+  sellTrades      Trade[]   @relation("SellerTrades")
+  yieldPayouts    YieldPayout[]
+
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------------
+// Properties
+// -----------------------------------------------------------------------------
+
+model Property {
+  id                    String         @id @default(uuid()) @db.Uuid
+  name                  String
+  locationCity          String
+  locationRegion        String
+  heroImageUrl          String
+  galleryUrls           String[]
+  description           String         @db.Text
+  developer             String
+  propertyValue         Decimal        @db.Decimal(20, 2)
+  holdPeriod            String
+  bedroomCount          Int?
+  areaSqm               Int?
+  pricePerUnit          Decimal        @db.Decimal(20, 6)
+  totalUnits            Int
+  unitsAvailable        Int
+  roiAnnualPct          Decimal        @db.Decimal(6, 2)
+  minInvestmentUsd      Decimal        @db.Decimal(20, 2)
+  minInvestmentUnits    Int
+  status                PropertyStatus @default(Active)
+  documentsUrls         String[]
+  financials            Json?
+  tokenIssuerAddress    String
+  tokenCode             String
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  holdings              Holding[]
+  orders                Order[]
+  trades                Trade[]
+  purchases             PrimaryPurchase[]
+  yieldDistributions    YieldDistribution[]
+  yieldPayouts          YieldPayout[]
+
+  @@index([status])
+  @@map("properties")
+}
+
+// -----------------------------------------------------------------------------
+// Holdings
+// -----------------------------------------------------------------------------
+
+model Holding {
+  userId               String   @db.Uuid
+  propertyId           String   @db.Uuid
+  unitsOwned           Int
+  averageCostPerUnit   Decimal  @db.Decimal(20, 6)
+  acquiredAt           DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property             Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, propertyId])
+  @@index([userId])
+  @@index([propertyId])
+  @@map("holdings")
+}
+
+// -----------------------------------------------------------------------------
+// Orders & Trades
+// -----------------------------------------------------------------------------
+
+model Order {
+  id                String      @id @default(uuid()) @db.Uuid
+  userId            String      @db.Uuid
+  propertyId        String      @db.Uuid
+  side              OrderSide
+  type              OrderType
+  units             Int
+  pricePerUnit      Decimal?    @db.Decimal(20, 6)
+  settlementAsset   Asset
+  totalAmount       Decimal     @db.Decimal(20, 6)
+  status            OrderStatus @default(Open)
+  filledUnits       Int         @default(0)
+  averageFillPrice  Decimal?    @db.Decimal(20, 6)
+  xrplTxHashes      String[]
+  createdAt         DateTime    @default(now())
+  filledAt          DateTime?
+
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property          Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  buyTrades         Trade[]     @relation("BuyOrder")
+  sellTrades        Trade[]     @relation("SellOrder")
+
+  @@index([userId, status])
+  @@index([propertyId, status])
+  @@map("orders")
+}
+
+model Trade {
+  id                String   @id @default(uuid()) @db.Uuid
+  propertyId        String   @db.Uuid
+  buyOrderId        String   @db.Uuid
+  sellOrderId       String   @db.Uuid
+  buyerUserId       String   @db.Uuid
+  sellerUserId      String   @db.Uuid
+  units             Int
+  pricePerUnit      Decimal  @db.Decimal(20, 6)
+  settlementAsset   Asset
+  xrplTxHash        String   @unique
+  occurredAt        DateTime @default(now())
+
+  property          Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  buyOrder          Order    @relation("BuyOrder", fields: [buyOrderId], references: [id])
+  sellOrder         Order    @relation("SellOrder", fields: [sellOrderId], references: [id])
+  buyer             User     @relation("BuyerTrades", fields: [buyerUserId], references: [id])
+  seller            User     @relation("SellerTrades", fields: [sellerUserId], references: [id])
+
+  @@index([propertyId, occurredAt])
+  @@map("trades")
+}
+
+// -----------------------------------------------------------------------------
+// Primary purchases (issuance)
+// -----------------------------------------------------------------------------
+
+model PrimaryPurchase {
+  id                 String         @id @default(uuid()) @db.Uuid
+  userId             String         @db.Uuid
+  propertyId         String         @db.Uuid
+  units              Int
+  pricePerUnit       Decimal        @db.Decimal(20, 6)
+  totalAmount        Decimal        @db.Decimal(20, 6)
+  settlementAsset    Asset
+  status             PurchaseStatus @default(Pending)
+  xrplTxHash         String?
+  agreementSignedAt  DateTime
+  createdAt          DateTime       @default(now())
+
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property           Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("primary_purchases")
+}
+
+// -----------------------------------------------------------------------------
+// Withdrawals
+// -----------------------------------------------------------------------------
+
+model Withdrawal {
+  id                   String           @id @default(uuid()) @db.Uuid
+  userId               String           @db.Uuid
+  asset                Asset
+  amount               Decimal          @db.Decimal(20, 6)
+  destinationAddress   String
+  destinationTag       Int?
+  status               WithdrawalStatus @default(Pending)
+  xrplTxHash           String?
+  createdAt            DateTime         @default(now())
+  confirmedAt          DateTime?
+
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("withdrawals")
+}
+
+// -----------------------------------------------------------------------------
+// Yield distribution
+// -----------------------------------------------------------------------------
+
+model YieldDistribution {
+  id              String   @id @default(uuid()) @db.Uuid
+  propertyId      String   @db.Uuid
+  periodStart     DateTime @db.Date
+  periodEnd       DateTime @db.Date
+  totalAmount     Decimal  @db.Decimal(20, 6)
+  settlementAsset Asset    @default(RLUSD)
+  distributedAt   DateTime @default(now())
+
+  property        Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  payouts         YieldPayout[]
+
+  @@unique([propertyId, periodStart])
+  @@map("yield_distributions")
+}
+
+model YieldPayout {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  propertyId      String   @db.Uuid
+  distributionId  String   @db.Uuid
+  units           Int
+  amount          Decimal  @db.Decimal(20, 6)
+  xrplTxHash      String
+
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property        Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  distribution    YieldDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+
+  @@unique([distributionId, userId])
+  @@index([userId])
+  @@map("yield_payouts")
+}

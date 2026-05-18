@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
+/* -----------------------------------------------------------------------------
+ * SurgeXRP design tokens — see docs/design/tokens.md
+ * ---------------------------------------------------------------------------*/
+
+@theme {
+  /* Fonts */
+  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand */
+  --color-gold: #c8a749;
+  --color-gold-light: #e7d8af;
+  --color-gold-subtle: #dbc587;
+
+  /* Surface (dark theme) */
+  --color-bg-primary: #050c16;
+  --color-bg-secondary: #091424;
+  --color-bg-tertiary: #0b1a2e;
+
+  /* Text */
+  --color-text-primary: #ffffff;
+  --color-text-muted: rgba(255, 255, 255, 0.6);
+  --color-text-subtle: rgba(255, 255, 255, 0.4);
+  --color-text-on-light: #222222;
+
+  /* Semantic */
+  --color-success: #47cd89;
+  --color-success-bright: #17b26a;
+  --color-error: #ff4a4d;
+
+  /* Spacing extras */
+  --spacing-0_5: 0.125rem;
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 50px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-subtle: 0 0 4px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 4px 13px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 0 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Dark theme default */
+html {
+  color-scheme: dark;
+  background-color: #050c16;
+}
+
+body {
+  background-color: #050c16;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glass surfaces */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* Gold gradient button */
+.btn-gold {
+  background: linear-gradient(48deg, #aa8b3d 0%, #c8a749 100%);
+  color: #050c16;
+  font-weight: 600;
+}
