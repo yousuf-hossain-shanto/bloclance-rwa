@@ -6,7 +6,7 @@ Client-MVP profile. Vercel-centric with Vercel marketplace integrations (Neon, U
 
 | Layer | Pick | Notes |
 |---|---|---|
-| **App (FE + BE)** | **Next.js 15** (App Router) on **Vercel** | Route Handlers + Server Actions. One repo. |
+| **App (FE + BE)** | **Next.js (latest)** (App Router) on **Vercel** | Route Handlers + Server Actions. One repo. Pin minor in `package.json` at scaffold time. |
 | **Database** | **Neon Postgres** (Vercel integration) | Branching for PR previews. |
 | **Cache + rate limit** | **Upstash Redis** (Vercel integration) | Hot reads (order book snapshot, recent trades), rate limits, idempotency keys. |
 | **Queue + cron** | **QStash** (Upstash, Vercel integration) | XRPL book polling, yield drip, nightly reconciliation. |
@@ -40,7 +40,7 @@ Client-MVP profile. Vercel-centric with Vercel marketplace integrations (Neon, U
 ```
 surgexrp/
 ├── apps/
-│   └── web/                  # Next.js 15 app
+│   └── web/                  # Next.js (latest) app
 ├── packages/
 │   ├── db/                   # Prisma schema + generated client
 │   ├── shared/               # Zod schemas, types, constants used by FE + BE

@@ -6,7 +6,7 @@ Vercel-centric. Turborepo monorepo. See [stack.md](stack.md) for the service lis
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│  Next.js 15 (App Router) on Vercel                     │
+│  Next.js (latest, App Router) on Vercel                │
 │  ├── Pages + RSC                                        │
 │  ├── Route Handlers (REST + QStash webhooks)            │
 │  ├── Server Actions (mutations)                         │
@@ -31,7 +31,7 @@ No separate backend service. No worker. One Vercel deployment + integrated SaaS.
 ```
 surgexrp/
 ├── apps/
-│   └── web/                  # Next.js 15 app
+│   └── web/                  # Next.js (latest) app
 ├── packages/
 │   ├── db/                   # Prisma schema + client
 │   ├── shared/               # Zod schemas, types, constants
@@ -75,7 +75,7 @@ If xrplcluster rate-limits, upgrade to paid XRPL RPC (QuickNode, Tatum) before s
 
 ## Frontend
 
-- Next.js 15 App Router + TypeScript strict.
+- Next.js (latest, App Router) + TypeScript strict.
 - Tailwind CSS v4 + shadcn/ui + Radix primitives.
 - TanStack Query for server state; Server Actions for mutations.
 - **React Hook Form** + `@hookform/resolvers/zod` + **Zod** for forms (schemas imported from `packages/shared`).
