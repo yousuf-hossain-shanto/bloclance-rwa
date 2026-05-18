@@ -2,21 +2,24 @@
 
 Two layers, both type-safe end-to-end:
 
-1. **tRPC** for read queries + cancellable mutations the client polls (orders, market data, portfolio). Mounted at `/api/trpc/[trpc]` via a single Next.js Route Handler. Client uses `@trpc/react-query` so it integrates with TanStack Query (incl. `refetchInterval`).
+1. **tRPC** for read queries + cancellable mutations the client polls (orders, market data, portfolio). Mounted at `/api/trpc/[trpc]` via `fetchRequestHandler` in a single Next.js Route Handler. Client uses `@trpc/react-query` so it integrates with TanStack Query (incl. `refetchInterval`). Server Components prefetch via `createHydrationHelpers` so initial paint has data already.
 2. **`next-safe-action`** for Server Actions invoked directly from forms / button clicks (purchase, withdraw, profile updates, KYC start). Validates input with the same Zod schemas; returns typed result; supports auth + KYC middleware.
 3. Raw **Route Handlers** for inbound webhooks only (Sumsub, QStash, Privy if needed) — those need raw request access and signature verification, can't be tRPC.
 
 All Zod schemas live in `packages/shared`, imported by both tRPC procedures and `next-safe-action` actions so the validation is single-source.
 
-## tRPC routers (queries + read-mutations)
+Reference recipe: <https://nisabmohd.vercel.app/trpc-app-router>.
 
-Layout under `apps/web/src/server/trpc/`:
+## tRPC layout (App Router recipe)
 
 ```
-trpc/
-├── trpc.ts                # createTRPCRouter, publicProcedure, protectedProcedure, kycProcedure
-├── context.ts             # session, userId, kycStatus, prisma
+apps/web/src/trpc/
+├── init.ts                # initTRPC.create({ transformer: superjson }); cache(createContext); publicProcedure / protectedProcedure / kycProcedure
+├── query-client.ts        # makeQueryClient() — superjson dehydrate/hydrate; staleTime default 30s
+├── server.ts              # "server-only" — createHydrationHelpers → exports `trpc` (server caller) + <HydrateClient>
+├── react.tsx              # "use client" — createTRPCReact<AppRouter>(); <TRPCProvider> wraps QueryClientProvider + trpc.Provider; httpBatchLink with absolute URL (env-driven)
 ├── routers/
+│   ├── _app.ts            # appRouter = createTRPCRouter({ auth, properties, portfolio, orders, purchases, withdrawals, wallets, tx })
 │   ├── auth.ts            # me
 │   ├── properties.ts      # list, byId, market, book, candles, trades
 │   ├── portfolio.ts       # overview, holdings, valueSeries
@@ -25,8 +28,17 @@ trpc/
 │   ├── withdrawals.ts     # list, byId
 │   ├── wallets.ts         # balances, depositAddress
 │   └── tx.ts              # status (by hash)
-└── root.ts                # appRouter
+└── app-router-type.ts     # export type AppRouter = typeof appRouter
+
+apps/web/src/app/api/trpc/[trpc]/route.ts
+                                # fetchRequestHandler({ endpoint: '/api/trpc', router: appRouter, createContext })
 ```
+
+Server Components prefetch with `void trpc.<router>.<proc>.prefetch(input)` then wrap children in `<HydrateClient>`. Client Components use `trpc.<router>.<proc>.useSuspenseQuery(input)` or `useQuery(input, { refetchInterval })`.
+
+**Dependencies**: `@trpc/server`, `@trpc/client`, `@trpc/react-query`, `@tanstack/react-query`, `zod`, `superjson`, `server-only`.
+
+**Gotcha**: `httpBatchLink` URL must point to absolute deployment URL in production — use `process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'` + `/api/trpc`.
 
 ### Procedure inventory
 

@@ -85,7 +85,7 @@ If xrplcluster rate-limits, upgrade to paid XRPL RPC (QuickNode, Tatum) before s
 
 ## Backend (== Next.js)
 
-- **tRPC** as the query/RPC layer — single Route Handler at `/api/trpc/[trpc]` mounts `appRouter` from `apps/web/src/server/trpc/root.ts`. Client uses `@trpc/react-query` so calls integrate with TanStack Query (caching, `refetchInterval` for polling endpoints like book/market/tx-status).
+- **tRPC** as the query/RPC layer — single Route Handler at `apps/web/src/app/api/trpc/[trpc]/route.ts` using `fetchRequestHandler` mounts `appRouter` from `apps/web/src/trpc/routers/_app.ts`. Client uses `@trpc/react-query` so calls integrate with TanStack Query (caching, `refetchInterval` for polling endpoints like book/market/tx-status). Server Components prefetch via `createHydrationHelpers` + `<HydrateClient>` so the first paint is already populated. `superjson` transformer for Date/BigInt/Decimal. See [api-surface.md](api-surface.md) for the exact file layout (recipe: <https://nisabmohd.vercel.app/trpc-app-router>).
 - **next-safe-action** for Server Actions invoked from forms (purchase, place order, withdraw, profile, KYC start). Composes `authActionClient` and `kycActionClient` middleware; Zod input schemas from `packages/shared`; typed `{ data | serverError | validationErrors }` envelope on the client via `useAction`.
 - **Route Handlers** retained only for inbound webhooks (Sumsub, Privy, QStash) — they need raw request + signature verification.
 - **Prisma** over Neon for the data layer (in `packages/db`). Migrations via `prisma migrate dev` locally + `prisma migrate deploy` in CI.
