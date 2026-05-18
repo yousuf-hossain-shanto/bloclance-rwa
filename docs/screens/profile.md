@@ -52,6 +52,6 @@ Variants: `366:16135` (Not Verified), `369:16621` (Verified).
 ## Behavior
 
 - Copy buttons → copy to clipboard + flash confirmation (spec it).
-- Verify CTA → KYC provider flow (Persona, Sumsub, Onfido — TBD). Returns to Profile with `Verified` state.
+- Verify CTA → Sumsub WebSDK modal (ID + selfie + address). Returns to Profile with `Verified` state.
 - Display Name edit → debounced save, success toast.
 - Email is auth-bound, not editable here. Email change flow out of scope.

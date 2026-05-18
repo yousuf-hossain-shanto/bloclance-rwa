@@ -31,6 +31,7 @@ Source of truth: [Figma file](https://www.figma.com/design/Nx6wVQyPhX3GPDMqKPK6t
 - [Architecture](technical/architecture.md) — system overview, XRPL role
 - [Data model](technical/data-model.md) — entities + fields
 - [API surface](technical/api-surface.md) — implied endpoints + payloads
+- [Tech stack](technical/stack.md) — concrete picks per layer (FE, BE, DB, XRPL, auth, ops)
 
 ### Reference
 - [Figma node map](figma-reference.md) — node IDs per screen/variant

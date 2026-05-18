@@ -131,7 +131,7 @@ Type 6 digits from your inbox into the app.
 - Retail mental model owned by Robinhood / Coinbase / banks.
 - Provider: Stytch / Clerk / Supabase / WorkOS.
 
-### Suggested pick: **Option B — 6-digit email OTP via Stytch**
+### Suggested pick: **Option B — 6-digit email OTP via Privy** (Privy bundles auth + wallet in one SDK; Privy renders the OTP UI)
 
 Why:
 1. **In-app browser breakage** is the killer of magic links — silent, opaque failure where token gets consumed in WebView but the user's real Safari/Chrome session never authenticates. Magic link's worst case is "support ticket"; OTP's worst case is "retype 6 digits".
@@ -186,7 +186,7 @@ Why:
 | Q1 | Order book | ✅ **Native XRPL DEX** | Compliance via MPT RequireAuth; 3–4s finality matches mocks; skips ATS license; ~$0 infra. |
 | Q2 | Wallet | ✅ **Embedded non-custodial** (Privy / Web3Auth) | Custodial UX, non-custodial classification; saves $2–5M licensing; Figma fits unchanged. |
 | Q3 | Yield | ✅ **Auto-drip** + Auto-Reinvest toggle | No new screen needed; XRPL fees are nothing; clean 1099-DIV per period. |
-| Q4 | Auth | ✅ **6-digit email OTP** (Stytch) | Magic link silently fails in mobile in-app browsers; OTP is cross-device by default. |
+| Q4 | Auth | ✅ **6-digit email OTP** (Privy — bundled with wallet SDK) | Magic link silently fails in mobile in-app browsers; OTP is cross-device by default. Privy handles auth + wallet in one. |
 | Q5 | KYC | ✅ **Gate at first transaction** | Open browse + sanctions screen at signup; full KYC on first Buy/Sell/Withdraw. |
 
 ## Notable side-effects to flag

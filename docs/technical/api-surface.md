@@ -1,92 +1,130 @@
 # API Surface
 
-Implied endpoints from screen requirements. REST sketch (swap to GraphQL/tRPC per team preference).
+Two layers, both type-safe end-to-end:
 
-## Auth
+1. **tRPC** for read queries + cancellable mutations the client polls (orders, market data, portfolio). Mounted at `/api/trpc/[trpc]` via `fetchRequestHandler` in a single Next.js Route Handler. Client uses `@trpc/react-query` so it integrates with TanStack Query (incl. `refetchInterval`). Server Components prefetch via `createHydrationHelpers` so initial paint has data already.
+2. **`next-safe-action`** for Server Actions invoked directly from forms / button clicks (purchase, withdraw, profile updates, KYC start). Validates input with the same Zod schemas; returns typed result; supports auth + KYC middleware.
+3. Raw **Route Handlers** for inbound webhooks only (Sumsub, QStash, Privy if needed) — those need raw request access and signature verification, can't be tRPC.
 
-| Method | Path | Purpose |
+All Zod schemas live in `packages/shared`, imported by both tRPC procedures and `next-safe-action` actions so the validation is single-source.
+
+Reference recipe: <https://nisabmohd.vercel.app/trpc-app-router>.
+
+## tRPC layout (App Router recipe)
+
+```
+apps/web/src/trpc/
+├── init.ts                # initTRPC.create({ transformer: superjson }); cache(createContext); publicProcedure / protectedProcedure / kycProcedure
+├── query-client.ts        # makeQueryClient() — superjson dehydrate/hydrate; staleTime default 30s
+├── server.ts              # "server-only" — createHydrationHelpers → exports `trpc` (server caller) + <HydrateClient>
+├── react.tsx              # "use client" — createTRPCReact<AppRouter>(); <TRPCProvider> wraps QueryClientProvider + trpc.Provider; httpBatchLink with absolute URL (env-driven)
+├── routers/
+│   ├── _app.ts            # appRouter = createTRPCRouter({ auth, properties, portfolio, orders, purchases, withdrawals, wallets, tx })
+│   ├── auth.ts            # me
+│   ├── properties.ts      # list, byId, market, book, candles, trades
+│   ├── portfolio.ts       # overview, holdings, valueSeries
+│   ├── orders.ts          # list, byId, preview, cancel
+│   ├── purchases.ts       # preview, byId
+│   ├── withdrawals.ts     # list, byId
+│   ├── wallets.ts         # balances, depositAddress
+│   └── tx.ts              # status (by hash)
+└── app-router-type.ts     # export type AppRouter = typeof appRouter
+
+apps/web/src/app/api/trpc/[trpc]/route.ts
+                                # fetchRequestHandler({ endpoint: '/api/trpc', router: appRouter, createContext })
+```
+
+Server Components prefetch with `void trpc.<router>.<proc>.prefetch(input)` then wrap children in `<HydrateClient>`. Client Components use `trpc.<router>.<proc>.useSuspenseQuery(input)` or `useQuery(input, { refetchInterval })`.
+
+**Dependencies**: `@trpc/server`, `@trpc/client`, `@trpc/react-query`, `@tanstack/react-query`, `zod`, `superjson`, `server-only`.
+
+**Gotcha**: `httpBatchLink` URL must point to absolute deployment URL in production — use `process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'` + `/api/trpc`.
+
+### Procedure inventory
+
+| Router.procedure | Type | Auth | Returns / notes |
+|---|---|---|---|
+| `auth.me` | query | optional | `{ user, kycStatus } \| null` |
+| `properties.list` | query | optional | input `{ sort, page, pageSize, filters }`; returns paginated cards |
+| `properties.byId` | query | optional | full detail (description, financials, documents, gallery) |
+| `properties.market` | query | optional | last price, volume, valuation, available units, deltas |
+| `properties.book` | query | optional | order book snapshot. Client `refetchInterval: 3000`. |
+| `properties.candles` | query | optional | input `{ id, interval, range, axis }` |
+| `properties.trades` | query | optional | recent trades |
+| `portfolio.overview` | query | protected | KPIs incl. value series |
+| `portfolio.holdings` | query | protected | paginated holdings |
+| `portfolio.valueSeries` | query | protected | range param |
+| `orders.list` | query | protected | input `{ status?, propertyId? }` |
+| `orders.byId` | query | protected | detail |
+| `orders.preview` | query | protected + kyc | input `{ propertyId, side, type, units, pricePerUnit?, asset }`; returns total/fees/slippage |
+| `orders.cancel` | mutation | protected + kyc | cancels open order on XRPL |
+| `purchases.preview` | query | protected + kyc | input `{ propertyId, units, asset }`; returns total/fees/balance check |
+| `purchases.byId` | query | protected | status |
+| `withdrawals.list` | query | protected | history |
+| `withdrawals.byId` | query | protected | detail + tx hash |
+| `wallets.balances` | query | protected | per-asset balances + USD equiv |
+| `wallets.depositAddress` | query | protected | r-address |
+| `tx.status` | query | protected | input `{ hash }`; client polls every 2s for ~60s |
+
+`protectedProcedure` enforces session. `kycProcedure` enforces `kyc_status = verified` and triggers the Sumsub flow modal if not.
+
+## next-safe-action actions (mutations from UI)
+
+Layout under `apps/web/src/actions/`:
+
+```
+actions/
+├── safe-action.ts         # createSafeActionClient with auth + kyc middlewares
+├── profile.ts             # updateProfile, uploadAvatar
+├── kyc.ts                 # startKyc → returns Sumsub access token
+├── purchases.ts           # submitPurchase
+├── orders.ts              # placeOrder (market/limit, buy/sell)
+├── withdrawals.ts         # submitWithdrawal
+└── settings.ts            # toggleAutoReinvest
+```
+
+Each action:
+
+- Defines its input via a Zod schema from `packages/shared`.
+- Composes the right middleware (`authActionClient`, `kycActionClient`).
+- Returns `{ data | serverError | validationErrors }` envelope from next-safe-action.
+- Called from forms via `useAction(...)` hook.
+
+### Action inventory
+
+| Action | Middleware | Input | Effect |
+|---|---|---|---|
+| `updateProfile` | auth | `{ displayName? }` | Patch `users` row |
+| `uploadAvatar` | auth | `FormData` (multipart) | Upload to Vercel Blob, save URL |
+| `startKyc` | auth | — | Create Sumsub applicant, return SDK access token |
+| `submitPurchase` | auth + kyc | `{ propertyId, units, asset, agreementAccepted }` | Build + sign + submit primary-issuance Payment. Returns purchase id + tx hash. |
+| `placeOrder` | auth + kyc | `{ propertyId, side, type, units, pricePerUnit?, asset }` | Build + sign + submit `OfferCreate`. Returns order id + tx hash. |
+| `cancelOrder` | auth + kyc | `{ orderId }` | `OfferCancel` |
+| `submitWithdrawal` | auth + kyc | `{ asset, amount, destinationAddress }` | Build + sign + submit `Payment`. Returns withdrawal id + tx hash. |
+| `toggleAutoReinvest` | auth | `{ enabled }` | Update user settings |
+
+Notes:
+- `placeOrder`, `submitPurchase`, `submitWithdrawal` return the tx hash; the client then uses tRPC `tx.status` with TanStack Query to poll confirmation.
+- Signing happens via the Privy SDK on the client; the action receives the signed tx blob and submits via `xrplcluster.com`.
+
+## Webhook Route Handlers (raw HTTP)
+
+| Path | Source | Notes |
 |---|---|---|
-| POST | `/auth/email/start` | Request OTP / magic link. Body: `{ email }`. |
-| POST | `/auth/email/verify` | Complete sign-in. Body: `{ email, code }` or `{ token }`. Returns session. |
-| POST | `/auth/logout` | Invalidate session. |
-| GET  | `/auth/me` | Current user. Returns User + KYC status. |
+| `POST /api/webhooks/sumsub` | Sumsub | HMAC signature verify; updates `users.kyc_status`; signs `MPTokenAuthorize` for the user's r-address. |
+| `POST /api/webhooks/privy` | Privy (optional) | User lifecycle events. |
+| `POST /api/jobs/*` | QStash | `Upstash-Signature` verify; idempotent. See [architecture.md](architecture.md) job catalog. |
 
-## Profile
+## Realtime model
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET    | `/me` | Profile detail incl. wallets + KYC. |
-| PATCH  | `/me` | Update displayName, avatar. |
-| POST   | `/me/avatar` | Upload profile picture. |
-| POST   | `/kyc/start` | Begin KYC, returns provider URL/token. |
-| POST   | `/kyc/webhook` | Provider → backend status updates. |
-
-## Properties (Explore + Marketplace)
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/properties` | List. Query: `sort=highestRoi|newest`, `page`, `pageSize`, `priceMin`, `priceMax`, `yieldMin`, `yieldMax`, `location`. |
-| GET | `/properties/:id` | Detail incl. description, financials, documents, image gallery. |
-| GET | `/properties/:id/market` | Trading-view payload: last price, volume, valuation, available units, deltas. |
-| GET | `/properties/:id/book` | Order book snapshot. Query `side=buy|sell`. |
-| GET | `/properties/:id/candles` | Chart data. Query `interval=1d`, `range=3M|6M|1Y|All`, `axis=price|yield`. |
-| GET | `/properties/:id/trades` | Recent trade history. |
-
-## Portfolio
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/portfolio/overview` | KPIs: portfolioValue, walletValue (XRP + RLUSD breakdown), assetsOwnedCount, valueSeries. |
-| GET | `/portfolio/holdings` | List user holdings (joined with property summary). Query `page`, `pageSize`, filter params. |
-| GET | `/portfolio/value-series` | Portfolio value over time. Query `range=All|3M|6M|1Y`. |
-
-## Primary purchase
-
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/purchases/preview` | Body: `{ propertyId, units, asset }`. Returns total, fees, balance check. |
-| POST | `/purchases` | Submit purchase. Body: same + `agreementAccepted: true`. Returns purchase id + status. |
-| GET  | `/purchases/:id` | Poll status. |
-
-## Trading
-
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/orders/preview` | Body: `{ propertyId, side, type, units, pricePerUnit?, asset }`. Returns total, fees, slippage estimate. |
-| POST | `/orders` | Submit order. |
-| GET  | `/orders` | List user orders. Query `status=open|filled|all`, `propertyId?`. |
-| DELETE | `/orders/:id` | Cancel open order. |
-| GET | `/orders/:id` | Detail. |
-
-## Withdrawals
-
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `/withdrawals/preview` | Body: `{ asset, amount, destinationAddress }`. Returns fee, total, validation. |
-| POST | `/withdrawals` | Submit withdrawal. |
-| GET  | `/withdrawals` | History. |
-| GET  | `/withdrawals/:id` | Detail + tx hash. |
-
-## Wallets
-
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/wallets` | Per-asset balances (XRP, RLUSD) + USD equivalents + the user's deposit address. |
-| GET | `/wallets/deposit-address` | Address for funding. Same r-address; UI may show two entries for clarity. |
-
-## Realtime
-
-WebSocket / SSE channel for:
-- `orderbook:<propertyId>` — live book updates
-- `trades:<propertyId>` — new trades stream
-- `prices:<propertyId>` — chart tick
-- `user:<userId>:orders` — fills + status changes
-- `user:<userId>:withdrawals` — confirmations
+No WebSocket / SSE channels. Clients poll via tRPC + TanStack Query `refetchInterval`. See [stack.md](stack.md) realtime model.
 
 ## Conventions
 
-- Auth via session cookie (HTTP-only) + CSRF token.
-- Decimal fields as strings to avoid JS float loss.
-- All amounts in canonical units (XRP in drops? or display? — pick **display string with explicit asset**: `{ asset: "XRP", amount: "658.25" }`).
-- Pagination: `{ page, pageSize, total }` envelope.
-- Errors: `{ code, message, fields?: { fieldName: message } }`.
+- **Auth**: session cookie issued by Privy login; bridged into tRPC context.
+- **Decimals as strings**: avoid JS float loss. Display amount with explicit asset: `{ asset: "XRP", amount: "658.25" }`. Internal calcs use `decimal.js` or `Prisma.Decimal`.
+- **Pagination**: tRPC inputs `{ cursor?, limit }` (cursor-based) or `{ page, pageSize }` (offset). Pick cursor for high-churn lists (orders, trades), offset for stable lists (properties).
+- **Errors**:
+  - tRPC: throw `TRPCError({ code, message })` — client gets typed error.
+  - next-safe-action: throw → returns `{ serverError }`. Validation failures auto-surface in `validationErrors`.
+  - Webhooks: HTTP 200 on success, 4xx on signature mismatch, 5xx on internal.
